@@ -1,0 +1,25 @@
+name: Test
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        fdb_ver: ['7.1.61', '7.3.43']
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup fenv
+        uses: ./
+        with:
+          fdb_ver: ${{ matrix.fdb_ver }}
+
+      - name: Verify FDB connection
+        run: $FENV_PATH/build.sh --exec fdbcli --exec "status"
