@@ -5,20 +5,20 @@ set -euo pipefail
 # initializes the database before running a command.
 #
 # Environment variables:
-#   FDB_HOSTNAME       - Hostname of the FDB container (default: fdb)
-#   FDB_DESCRIPTION_ID - Cluster description:id (default: docker:docker)
+#   FENV_FDB_HOSTNAME       - Hostname of the FDB container (default: fdb)
+#   FENV_FDB_DESCRIPTION_ID - Cluster description:id (default: docker:docker)
 #
 # Usage: ./shim.sh <command> [args...]
 
-FDB_HOSTNAME=${FDB_HOSTNAME:-fdb}
-FDB_DESCRIPTION_ID=${FDB_DESCRIPTION_ID:-docker:docker}
+FENV_FDB_HOSTNAME=${FENV_FDB_HOSTNAME:-fdb}
+FENV_FDB_DESCRIPTION_ID=${FENV_FDB_DESCRIPTION_ID:-docker:docker}
 
 # Obtain the IP for FDB from the given hostname.
-FDB_IP=$(getent hosts "$FDB_HOSTNAME" | awk '{print $1}')
+FDB_IP=$(getent hosts "$FENV_FDB_HOSTNAME" | awk '{print $1}')
 
 # Create the FDB cluster file.
 export FDB_CLUSTER_FILE="/etc/foundationdb/fdb.cluster"
-echo "${FDB_DESCRIPTION_ID}@${FDB_IP}:4500" > "$FDB_CLUSTER_FILE"
+echo "${FENV_FDB_DESCRIPTION_ID}@${FDB_IP}:4500" > "$FDB_CLUSTER_FILE"
 echo "FDB_CLUSTER_FILE: $(cat "$FDB_CLUSTER_FILE")"
 
 # Check if the database needs initialization by looking for

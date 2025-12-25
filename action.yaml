@@ -9,7 +9,7 @@ inputs:
     default: '7.1.61'
 
 outputs:
-  docker_tag:
+  fenv_docker_tag:
     description: 'Docker image tag for the build container'
     value: ${{ steps.docker.outputs.tag }}
 
@@ -24,13 +24,13 @@ runs:
       shell: bash
       run: echo "tag=$(${{ github.action_path }}/docker_tag.sh)" >> $GITHUB_OUTPUT
       env:
-        FDB_VER: ${{ inputs.fdb_ver }}
+        FENV_FDB_VER: ${{ inputs.fdb_ver }}
 
     - name: Build image
       uses: docker/bake-action@v5
       env:
-        DOCKER_TAG: ${{ steps.docker.outputs.tag }}
-        FDB_VER: ${{ inputs.fdb_ver }}
+        FENV_DOCKER_TAG: ${{ steps.docker.outputs.tag }}
+        FENV_FDB_VER: ${{ inputs.fdb_ver }}
       with:
         workdir: ${{ github.action_path }}
         files: bake.hcl
@@ -63,6 +63,6 @@ runs:
     - name: Export environment
       shell: bash
       run: |
-        echo "DOCKER_TAG=${{ steps.docker.outputs.tag }}" >> $GITHUB_ENV
-        echo "FDB_VER=${{ inputs.fdb_ver }}" >> $GITHUB_ENV
+        echo "FENV_DOCKER_TAG=${{ steps.docker.outputs.tag }}" >> $GITHUB_ENV
+        echo "FENV_FDB_VER=${{ inputs.fdb_ver }}" >> $GITHUB_ENV
         echo "FENV_PATH=${{ github.action_path }}" >> $GITHUB_ENV

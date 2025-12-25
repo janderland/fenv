@@ -38,7 +38,7 @@ NOTES
   This script can be called from any directory. The calling
   directory is mounted into the container at /src. 
 
-  The FDB_VER environment variable controls which version of
+  The FENV_FDB_VER environment variable controls which version of
   FoundationDB is used. It defaults to 7.1.61.
 END
 }
@@ -103,13 +103,13 @@ done
 
 # Build variables required by docker commands.
 
-DOCKER_TAG="$(./docker_tag.sh)"
-echo "DOCKER_TAG=${DOCKER_TAG}"
-export DOCKER_TAG
+FENV_DOCKER_TAG="$(./docker_tag.sh)"
+echo "FENV_DOCKER_TAG=${FENV_DOCKER_TAG}"
+export FENV_DOCKER_TAG
 
-FDB_VER="${FDB_VER:-7.1.61}"
-echo "FDB_VER=${FDB_VER}"
-export FDB_VER
+FENV_FDB_VER="${FENV_FDB_VER:-7.1.61}"
+echo "FENV_FDB_VER=${FENV_FDB_VER}"
+export FENV_FDB_VER
 
 echo "CALLING_DIR=${CALLING_DIR}"
 

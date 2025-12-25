@@ -3,11 +3,11 @@
 # Variables can be overridden via environment variables.
 # The CI workflow passes these as env vars from the matrix.
 
-variable "DOCKER_TAG" {
+variable "FENV_DOCKER_TAG" {
   default = "latest"
 }
 
-variable "FDB_VER" {
+variable "FENV_FDB_VER" {
   default = "7.1.61"
 }
 
@@ -27,7 +27,7 @@ variable "JP_URL" {
 function "build_args" {
   params = []
   result = {
-    FDB_LIB_URL    = "https://github.com/apple/foundationdb/releases/download/${FDB_VER}/foundationdb-clients_${FDB_VER}-1_amd64.deb"
+    FDB_LIB_URL    = "https://github.com/apple/foundationdb/releases/download/${FENV_FDB_VER}/foundationdb-clients_${FENV_FDB_VER}-1_amd64.deb"
     SHELLCHECK_URL = SHELLCHECK_URL
     HADOLINT_URL   = HADOLINT_URL
     JP_URL         = JP_URL
@@ -42,7 +42,7 @@ target "build" {
   context    = "."
   dockerfile = "Dockerfile"
   target     = "base"
-  tags       = ["docker.io/janderland/fenv:${DOCKER_TAG}"]
+  tags       = ["docker.io/janderland/fenv:${FENV_DOCKER_TAG}"]
   platforms  = ["linux/amd64"]
   args       = build_args()
 }
