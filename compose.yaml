@@ -1,0 +1,34 @@
+volumes:
+  cache:
+
+services:
+
+  # The build service provides a container with the
+  # FoundationDB client library and development tools.
+  #
+  # The CACHE_VOLUME env var controls where the build
+  # cache is stored. Defaults to a named volume "cache"
+  # for local dev. CI sets this to a bind mount path
+  # so the cache can be persisted between runs.
+  build:
+    container_name: "build"
+    image: "docker.io/janderland/fenv:${DOCKER_TAG}"
+    pull_policy: "never"
+    platform: "linux/amd64"
+    depends_on:
+      - "fdb"
+    working_dir: "/src"
+    environment:
+      FDB_HOSTNAME: "fdb"
+      FDB_DESCRIPTION_ID: "docker:docker"
+    volumes:
+      - "${CACHE_VOLUME:-cache}:/cache"
+
+  # The fdb service provides a single-node cluster
+  # for integration testing.
+  fdb:
+    container_name: "fdb"
+    image: "foundationdb/foundationdb:${FDB_VER:-7.1.61}"
+    platform: "linux/amd64"
+    ports:
+      - "4500:4500"
