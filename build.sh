@@ -131,6 +131,7 @@ echo "FENV_FDB_VER=${FENV_FDB_VER}"
 export FENV_FDB_VER
 
 echo "CALLING_DIR=${CALLING_DIR}"
+export CALLING_DIR
 
 
 # Build the compose file arguments.
