@@ -9,7 +9,8 @@ interface for building and running the fenv container.
 
 FLAGS
 
-  --image  Build the 'build' container image.
+  --image  Build the 'build' container image. If --bake is provided,
+           builds fenv's image first, then builds the custom image.
 
   --exec   Execute a command in the 'build' container. All
            arguments after this flag are passed to the container.
@@ -17,18 +18,26 @@ FLAGS
   --down   Run 'docker compose down -v' to stop and remove
            containers and volumes.
 
+  --bake FILE
+           Path to a custom bake.hcl file. Used with --image to
+           build a custom image on top of fenv's base image.
+
+  --compose FILE
+           Path to a custom compose.yaml file. Merges with fenv's
+           compose.yaml (custom overrides fenv).
+
   --help   Print this help message.
 
 EXAMPLES
 
-  # Build the image
+  # Build the fenv image
   ./build.sh --image
 
-  # Run fdbcli in the container
-  ./build.sh --exec fdbcli --exec "status"
+  # Build a custom image extending fenv
+  ./build.sh --bake ./bake.hcl --compose ./compose.yaml --image
 
-  # Run a shell in the container
-  ./build.sh --exec bash
+  # Run a command with custom compose
+  ./build.sh --compose ./compose.yaml --exec ./test.sh
 
   # Tear down the environment
   ./build.sh --down
@@ -36,7 +45,7 @@ EXAMPLES
 NOTES
 
   This script can be called from any directory. The calling
-  directory is mounted into the container at /src. 
+  directory is mounted into the container at /src.
 
   The FENV_FDB_VER environment variable controls which version of
   FoundationDB is used. It defaults to 7.1.61.
@@ -90,6 +99,16 @@ while [[ $# -gt 0 ]]; do
       shift 1
       ;;
 
+    --bake)
+      CUSTOM_BAKE="$2"
+      shift 2
+      ;;
+
+    --compose)
+      CUSTOM_COMPOSE="$2"
+      shift 2
+      ;;
+
     --help)
       print_help
       exit 0
@@ -114,16 +133,40 @@ export FENV_FDB_VER
 echo "CALLING_DIR=${CALLING_DIR}"
 
 
+# Build the compose file arguments.
+
+COMPOSE_FILES=(-f compose.yaml)
+if [[ -n "${CUSTOM_COMPOSE:-}" ]]; then
+  # Convert to absolute path if relative.
+  if [[ "$CUSTOM_COMPOSE" != /* ]]; then
+    CUSTOM_COMPOSE="${CALLING_DIR}/${CUSTOM_COMPOSE}"
+  fi
+  COMPOSE_FILES+=(-f "$CUSTOM_COMPOSE")
+  echo "CUSTOM_COMPOSE=${CUSTOM_COMPOSE}"
+fi
+
+
 # Run the requested commands.
 
 if [[ -n "${DO_IMAGE:-}" ]]; then
+  # Always build fenv's base image first.
   (set -x; docker buildx bake -f bake.hcl --load build)
+
+  # If a custom bake file is provided, build the custom image.
+  if [[ -n "${CUSTOM_BAKE:-}" ]]; then
+    # Convert to absolute path if relative.
+    if [[ "$CUSTOM_BAKE" != /* ]]; then
+      CUSTOM_BAKE="${CALLING_DIR}/${CUSTOM_BAKE}"
+    fi
+    echo "CUSTOM_BAKE=${CUSTOM_BAKE}"
+    (set -x; docker buildx bake -f bake.hcl -f "$CUSTOM_BAKE" --load build)
+  fi
 fi
 
 if [[ -n "${DO_EXEC:-}" ]]; then
-  (set -x; docker compose run --rm -v "${CALLING_DIR}:/src" build "${EXEC_ARGS[@]}")
+  (set -x; docker compose "${COMPOSE_FILES[@]}" run --rm -v "${CALLING_DIR}:/src" build "${EXEC_ARGS[@]}")
 fi
 
 if [[ -n "${DO_DOWN:-}" ]]; then
-  (set -x; docker compose down -v)
+  (set -x; docker compose "${COMPOSE_FILES[@]}" down -v)
 fi
