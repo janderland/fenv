@@ -9,22 +9,22 @@ RUN apt-get update &&\
     apt-get clean &&\
     rm -rf /var/lib/apt/lists/*
 
-ARG SHELLCHECK_URL
+ARG SHELLCHECK_URL=https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz
 RUN curl -Lo /shellcheck.tar.xz $SHELLCHECK_URL &&\
     tar -xf /shellcheck.tar.xz &&\
     mv /shellcheck-*/shellcheck /usr/local/bin &&\
     rm -r /shellcheck.tar.xz /shellcheck-*
 
-ARG HADOLINT_URL
+ARG HADOLINT_URL=https://github.com/hadolint/hadolint/releases/download/v2.7.0/hadolint-Linux-x86_64
 RUN curl -Lo /usr/local/bin/hadolint $HADOLINT_URL &&\
     chmod +x /usr/local/bin/hadolint
 
-ARG JP_URL
+ARG JP_URL=https://github.com/jmespath/jp/releases/download/0.2.1/jp-linux-amd64
 RUN curl -Lo /usr/local/bin/jp $JP_URL &&\
     chmod +x /usr/local/bin/jp
 
-ARG FDB_LIB_URL
-RUN curl -Lo /fdb.deb $FDB_LIB_URL &&\
+ARG FENV_FDB_VER=7.1.61
+RUN curl -Lo /fdb.deb https://github.com/apple/foundationdb/releases/download/${FENV_FDB_VER}/foundationdb-clients_${FENV_FDB_VER}-1_amd64.deb &&\
     dpkg -i /fdb.deb &&\
     rm /fdb.deb
 

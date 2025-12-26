@@ -18,9 +18,6 @@ services:
     depends_on:
       - "fdb"
     working_dir: "/src"
-    environment:
-      FENV_FDB_HOSTNAME: "fdb"
-      FENV_FDB_DESCRIPTION_ID: "docker:docker"
     volumes:
       - "${FENV_CACHE_VOLUME:-cache}:/cache"
 
