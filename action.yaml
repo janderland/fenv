@@ -8,10 +8,28 @@ inputs:
     required: false
     default: '7.1.61'
 
+  ext_bake:
+    description: 'Path to custom bake.hcl for extending fenv image'
+    required: false
+    default: ''
+
+  ext_image_name:
+    description: 'Name for extended image (defaults to repo name)'
+    required: false
+    default: ''
+
 outputs:
   fenv_docker_tag:
     description: 'Docker image tag for the build container'
     value: ${{ steps.docker.outputs.tag }}
+
+  fenv_ext_docker_tag:
+    description: 'Extended image tag (empty if not built)'
+    value: ${{ steps.docker_ext.outputs.tag }}
+
+  fenv_ext_image_built:
+    description: 'Whether extended image was built (true/false)'
+    value: ${{ steps.check_ext_bake.outputs.should_build }}
 
 runs:
   using: 'composite'
@@ -34,7 +52,7 @@ runs:
       with:
         workdir: ${{ github.action_path }}
         files: bake.hcl
-        targets: build
+        targets: fenv
         load: true
         set: |
           *.cache-from=type=gha,scope=build-${{ inputs.fdb_ver }}
@@ -60,9 +78,83 @@ runs:
         docker pull foundationdb/foundationdb:${{ inputs.fdb_ver }}
         docker save foundationdb/foundationdb:${{ inputs.fdb_ver }} -o ~/.cache/fenv/fdb-image.tar
 
+    - name: Check if ext bake file provided
+      id: check_ext_bake
+      shell: bash
+      run: |
+        if [[ -n "${{ inputs.ext_bake }}" ]]; then
+          echo "should_build=true" >> $GITHUB_OUTPUT
+        else
+          echo "should_build=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Validate ext bake file exists
+      if: steps.check_ext_bake.outputs.should_build == 'true'
+      shell: bash
+      run: |
+        BAKE_PATH="${{ inputs.ext_bake }}"
+        if [[ ! -f "$BAKE_PATH" ]]; then
+          echo "ERROR: Ext bake file not found: $BAKE_PATH"
+          ls -la "$(dirname "$BAKE_PATH")" || echo "Parent directory not found"
+          exit 1
+        fi
+
+    - name: Compute Docker tag for extended image
+      if: steps.check_ext_bake.outputs.should_build == 'true'
+      id: docker_ext
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      run: echo "tag=$(./docker_tag.sh)" >> $GITHUB_OUTPUT
+      env:
+        FENV_FDB_VER: ${{ inputs.fdb_ver }}
+
+    - name: Determine extended image name
+      if: steps.check_ext_bake.outputs.should_build == 'true'
+      id: image_name
+      shell: bash
+      run: |
+        if [[ -n "${{ inputs.ext_image_name }}" ]]; then
+          IMAGE_NAME="${{ inputs.ext_image_name }}"
+        else
+          IMAGE_NAME="${{ github.event.repository.name }}"
+        fi
+        echo "name=${IMAGE_NAME}" >> $GITHUB_OUTPUT
+
+    - name: Build extended image
+      if: steps.check_ext_bake.outputs.should_build == 'true'
+      uses: docker/bake-action@v5
+      env:
+        FENV_DOCKER_TAG: ${{ steps.docker.outputs.tag }}
+        FENV_EXT_DOCKER_TAG: ${{ steps.docker_ext.outputs.tag }}
+        FENV_FDB_VER: ${{ inputs.fdb_ver }}
+        FENV_EXT_IMAGE_NAME: ${{ steps.image_name.outputs.name }}
+      with:
+        workdir: ${{ github.workspace }}
+        files: |
+          ${{ github.action_path }}/bake.hcl
+          ${{ inputs.ext_bake }}
+        targets: fenv
+        load: true
+        set: |
+          fenv.context=${{ github.workspace }}
+          *.cache-from=type=gha,scope=build-ext-${{ inputs.fdb_ver }}
+          *.cache-to=type=gha,mode=max,scope=build-ext-${{ inputs.fdb_ver }}
+        provenance: false
+
     - name: Export environment
       shell: bash
       run: |
         echo "FENV_DOCKER_TAG=${{ steps.docker.outputs.tag }}" >> $GITHUB_ENV
         echo "FENV_FDB_VER=${{ inputs.fdb_ver }}" >> $GITHUB_ENV
         echo "FENV_PATH=${{ github.action_path }}" >> $GITHUB_ENV
+
+        # Export extended image variables
+        if [[ "${{ steps.check_ext_bake.outputs.should_build }}" == "true" ]]; then
+          echo "FENV_EXT_DOCKER_TAG=${{ steps.docker_ext.outputs.tag }}" >> $GITHUB_ENV
+          echo "FENV_EXT_IMAGE_NAME=${{ steps.image_name.outputs.name }}" >> $GITHUB_ENV
+          echo "FENV_EXT_IMAGE_BUILT=true" >> $GITHUB_ENV
+        else
+          echo "FENV_EXT_DOCKER_TAG=" >> $GITHUB_ENV
+          echo "FENV_EXT_IMAGE_NAME=" >> $GITHUB_ENV
+          echo "FENV_EXT_IMAGE_BUILT=false" >> $GITHUB_ENV
+        fi
