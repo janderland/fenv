@@ -34,7 +34,7 @@ EXAMPLES
   ./build.sh --image
 
   # Build a custom image extending fenv
-  ./build.sh --bake ./bake.hcl --compose ./compose.yaml --image
+  ./build.sh --bake ./bake.hcl --image
 
   # Run a command with custom compose
   ./build.sh --compose ./compose.yaml --exec ./test.sh
@@ -160,7 +160,7 @@ if [[ -n "${DO_IMAGE:-}" ]]; then
       CUSTOM_BAKE="${CALLING_DIR}/${CUSTOM_BAKE}"
     fi
     echo "CUSTOM_BAKE=${CUSTOM_BAKE}"
-    (set -x; docker buildx bake -f bake.hcl -f "$CUSTOM_BAKE" --load build)
+    (set -x; docker buildx bake -f bake.hcl -f "$CUSTOM_BAKE" --set "build.context=$CALLING_DIR" --allow=fs.read=.. --load build)
   fi
 fi
 

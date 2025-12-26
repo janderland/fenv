@@ -41,7 +41,6 @@ group "default" {
 target "build" {
   context    = "."
   dockerfile = "Dockerfile"
-  target     = "base"
   tags       = ["docker.io/janderland/fenv:${FENV_DOCKER_TAG}"]
   platforms  = ["linux/amd64"]
   args       = build_args()
