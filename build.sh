@@ -133,6 +133,11 @@ export FENV_FDB_VER
 echo "CALLING_DIR=${CALLING_DIR}"
 export CALLING_DIR
 
+# Compute docker tag for extended images.
+FENV_EXT_DOCKER_TAG="$(cd "$CALLING_DIR" && ./fenv/docker_tag.sh)"
+echo "FENV_EXT_DOCKER_TAG=${FENV_EXT_DOCKER_TAG}"
+export FENV_EXT_DOCKER_TAG
+
 
 # Build the compose file arguments.
 
