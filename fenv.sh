@@ -156,7 +156,7 @@ fi
 
 if [[ -n "${DO_IMAGE:-}" ]]; then
   # Always build fenv's base image first.
-  (set -x; docker buildx bake -f bake.hcl --load build)
+  (set -x; docker buildx bake -f bake.hcl --load fenv)
 
   # If a custom bake file is provided, build the custom image.
   if [[ -n "${CUSTOM_BAKE:-}" ]]; then
@@ -165,12 +165,12 @@ if [[ -n "${DO_IMAGE:-}" ]]; then
       CUSTOM_BAKE="${CALLING_DIR}/${CUSTOM_BAKE}"
     fi
     echo "CUSTOM_BAKE=${CUSTOM_BAKE}"
-    (set -x; docker buildx bake -f bake.hcl -f "$CUSTOM_BAKE" --set "build.context=$CALLING_DIR" --allow=fs.read=.. --load build)
+    (set -x; docker buildx bake -f bake.hcl -f "$CUSTOM_BAKE" --set "fenv.context=$CALLING_DIR" --allow=fs.read=.. --load fenv)
   fi
 fi
 
 if [[ -n "${DO_EXEC:-}" ]]; then
-  (set -x; docker compose "${COMPOSE_FILES[@]}" run --rm -v "${CALLING_DIR}:/src" build "${EXEC_ARGS[@]}")
+  (set -x; docker compose "${COMPOSE_FILES[@]}" run --rm -v "${CALLING_DIR}:/src" fenv "${EXEC_ARGS[@]}")
 fi
 
 if [[ -n "${DO_DOWN:-}" ]]; then

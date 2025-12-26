@@ -35,10 +35,10 @@ function "build_args" {
 }
 
 group "default" {
-  targets = ["build"]
+  targets = ["fenv"]
 }
 
-target "build" {
+target "fenv" {
   context    = "."
   dockerfile = "Dockerfile"
   tags       = ["docker.io/janderland/fenv:${FENV_DOCKER_TAG}"]

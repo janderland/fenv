@@ -3,15 +3,15 @@ volumes:
 
 services:
 
-  # The build service provides a container with the
+  # The fenv service provides a container with the
   # FoundationDB client library and development tools.
   #
   # The FENV_CACHE_VOLUME env var controls where the build
   # cache is stored. Defaults to a named volume "cache"
   # for local dev. CI sets this to a bind mount path
   # so the cache can be persisted between runs.
-  build:
-    container_name: "build"
+  fenv:
+    container_name: "fenv"
     image: "docker.io/janderland/fenv:${FENV_DOCKER_TAG}"
     pull_policy: "never"
     platform: "linux/amd64"
