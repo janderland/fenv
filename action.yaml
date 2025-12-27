@@ -104,7 +104,7 @@ runs:
       id: docker_ext
       shell: bash
       working-directory: ${{ github.workspace }}
-      run: echo "tag=$(./docker_tag.sh)" >> $GITHUB_OUTPUT
+      run: echo "tag=$(${{ github.action_path }}/docker_tag.sh)" >> $GITHUB_OUTPUT
       env:
         FENV_FDB_VER: ${{ inputs.fdb_ver }}
 
