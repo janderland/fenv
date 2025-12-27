@@ -111,6 +111,35 @@ while [[ $# -gt 0 ]]; do
 done
 
 
+# derive_project_name determines a unique name for the project.
+# It uses FENV_PROJECT_NAME if set, otherwise derives from git remote
+# URL or directory name as a fallback.
+
+function derive_project_name {
+  # Use explicit project name if provided
+  if [[ -n "${FENV_PROJECT_NAME:-}" ]]; then
+    echo "${FENV_PROJECT_NAME}"
+    return
+  fi
+
+  # Try to derive from git remote URL
+  if git -C "${CALLING_DIR}" remote get-url origin &>/dev/null; then
+    local remote_url
+    remote_url="$(git -C "${CALLING_DIR}" remote get-url origin)"
+    # Extract repo name from URL (handles both https and ssh formats)
+    # e.g., https://github.com/user/repo.git -> repo
+    # e.g., git@github.com:user/repo.git -> repo
+    local repo_name
+    repo_name="$(basename "${remote_url}" .git)"
+    echo "${repo_name}"
+    return
+  fi
+
+  # Fallback to directory name
+  basename "${CALLING_DIR}"
+}
+
+
 # Build variables required by docker commands.
 
 FENV_FDB_VER="${FENV_FDB_VER:-7.1.61}"
@@ -131,9 +160,14 @@ if [[ -f "${CALLING_DIR}/fenv/docker_tag.sh" ]]; then
   export FENV_EXT_DOCKER_TAG
 fi
 
+# Derive project name for namespacing extended images
+FENV_PROJECT_NAME="$(derive_project_name)"
+echo "FENV_PROJECT_NAME=${FENV_PROJECT_NAME}"
+export FENV_PROJECT_NAME
+
 # Select which image to use for compose based on whether --docker was provided.
 if [[ -n "${EXT_DOCKERFILE:-}" ]]; then
-  FENV_IMAGE="fenv-ext:${FENV_EXT_DOCKER_TAG}"
+  FENV_IMAGE="fenv-ext-${FENV_PROJECT_NAME}:${FENV_EXT_DOCKER_TAG}"
 else
   FENV_IMAGE="fenv:${FENV_DOCKER_TAG}"
 fi
@@ -163,7 +197,7 @@ if [[ -n "${DO_BUILD:-}" ]]; then
     (set -x; docker build \
       --platform linux/amd64 \
       --build-arg "FENV_DOCKER_TAG=${FENV_DOCKER_TAG}" \
-      --tag "fenv-ext:${FENV_EXT_DOCKER_TAG}" \
+      --tag "fenv-ext-${FENV_PROJECT_NAME}:${FENV_EXT_DOCKER_TAG}" \
       --file "${EXT_DOCKERFILE}" \
       "${CALLING_DIR}")
   fi
