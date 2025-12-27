@@ -13,6 +13,11 @@ inputs:
     required: false
     default: ''
 
+  project_name:
+    description: 'Project name for namespacing extended images (defaults to repo name)'
+    required: false
+    default: ''
+
 outputs:
   fenv_docker_tag:
     description: 'Docker image tag for the build container'
@@ -90,6 +95,18 @@ runs:
       env:
         FENV_FDB_VER: ${{ inputs.fdb_ver }}
 
+    - name: Derive project name
+      if: steps.check_ext_dockerfile.outputs.should_build == 'true'
+      id: project_name
+      shell: bash
+      run: |
+        if [[ -n "${{ inputs.project_name }}" ]]; then
+          echo "name=${{ inputs.project_name }}" >> $GITHUB_OUTPUT
+        else
+          # Extract repo name from GITHUB_REPOSITORY (org/repo -> repo)
+          echo "name=$(basename ${{ github.repository }})" >> $GITHUB_OUTPUT
+        fi
+
     # Create inline bake file for building both images
     - name: Create bake configuration
       if: steps.check_ext_dockerfile.outputs.should_build == 'true'
@@ -114,10 +131,10 @@ runs:
           }
           context    = "${{ github.workspace }}"
           dockerfile = "${{ inputs.ext_dockerfile }}"
-          tags       = ["fenv-ext:${{ steps.docker_ext.outputs.tag }}"]
+          tags       = ["fenv-ext-${{ steps.project_name.outputs.name }}:${{ steps.docker_ext.outputs.tag }}"]
           platforms  = ["linux/amd64"]
-          cache-from = ["type=gha,scope=fenv-ext-${{ inputs.fdb_ver }}"]
-          cache-to   = ["type=gha,mode=max,scope=fenv-ext-${{ inputs.fdb_ver }}"]
+          cache-from = ["type=gha,scope=fenv-ext-${{ steps.project_name.outputs.name }}-${{ inputs.fdb_ver }}"]
+          cache-to   = ["type=gha,mode=max,scope=fenv-ext-${{ steps.project_name.outputs.name }}-${{ inputs.fdb_ver }}"]
           args = {
             FENV_DOCKER_TAG = "${{ steps.docker.outputs.tag }}"
           }
@@ -158,8 +175,10 @@ runs:
         # Export extended image variables
         if [[ "${{ steps.check_ext_dockerfile.outputs.should_build }}" == "true" ]]; then
           echo "FENV_EXT_DOCKER_TAG=${{ steps.docker_ext.outputs.tag }}" >> $GITHUB_ENV
+          echo "FENV_PROJECT_NAME=${{ steps.project_name.outputs.name }}" >> $GITHUB_ENV
           echo "FENV_EXT_IMAGE_BUILT=true" >> $GITHUB_ENV
         else
           echo "FENV_EXT_DOCKER_TAG=" >> $GITHUB_ENV
+          echo "FENV_PROJECT_NAME=" >> $GITHUB_ENV
           echo "FENV_EXT_IMAGE_BUILT=false" >> $GITHUB_ENV
         fi

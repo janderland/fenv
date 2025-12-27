@@ -64,6 +64,17 @@ The `FENV_DOCKER_TAG` argument is automatically provided and ensures your extend
 
 The `/cache` directory is backed by a Docker volume that persists between container runs. This makes it an ideal location for build and test caches (as shown in the example above with Go's module cache and golangci-lint cache).
 
+### Image Namespacing
+
+Extended images are automatically namespaced by project to prevent collisions when multiple projects use fenv. The image name format is `fenv-ext-{project_name}:{tag}`.
+
+The project name is determined in the following order:
+1. Explicit `FENV_PROJECT_NAME` environment variable
+2. Git remote repository name (e.g., `myproject` from `git@github.com:user/myproject.git`)
+3. Current directory name as a fallback
+
+This ensures that different projects can have different extended images without interfering with each other, even if they happen to be at the same git commit hash.
+
 ## Local Development
 
 Use the `fenv.sh` script to manage your development environment:
@@ -182,6 +193,7 @@ jobs:
 **User-configurable:**
 - `FENV_FDB_VER`: FoundationDB version (default: `7.1.61`)
 - `FENV_CACHE_VOLUME`: Custom cache volume name (optional)
+- `FENV_PROJECT_NAME`: Project name for namespacing extended images (optional, auto-derived from git remote or directory name)
 
 **Auto-computed (available after running fenv):**
 - `FENV_DOCKER_TAG`: Docker tag for the base fenv image
@@ -198,6 +210,7 @@ jobs:
 |------|-------------|----------|---------|
 | `fdb_ver` | FoundationDB version | No | `7.1.61` |
 | `ext_dockerfile` | Path to custom Dockerfile for extending fenv image | No | - |
+| `project_name` | Project name for namespacing extended images | No | Repository name |
 
 ### GitHub Action Outputs
 
