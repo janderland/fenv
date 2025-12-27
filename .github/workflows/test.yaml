@@ -22,10 +22,10 @@ jobs:
           fdb_ver: ${{ matrix.fdb_ver }}
 
       - name: Lint shell scripts
-        run: $FENV_PATH/build.sh --exec shellcheck build.sh docker_tag.sh shim.sh
+        run: $FENV_PATH/fenv.sh --exec shellcheck fenv.sh docker_tag.sh shim.sh
 
       - name: Lint Dockerfile
-        run: $FENV_PATH/build.sh --exec hadolint Dockerfile
+        run: $FENV_PATH/fenv.sh --exec hadolint Dockerfile
 
       - name: Verify FDB connection
-        run: $FENV_PATH/build.sh --exec fdbcli --exec "status"
+        run: $FENV_PATH/fenv.sh --exec fdbcli --exec "status"
