@@ -13,11 +13,6 @@ inputs:
     required: false
     default: ''
 
-  ext_image_name:
-    description: 'Name for extended image (defaults to repo name)'
-    required: false
-    default: ''
-
 outputs:
   fenv_docker_tag:
     description: 'Docker image tag for the build container'
@@ -95,18 +90,6 @@ runs:
       env:
         FENV_FDB_VER: ${{ inputs.fdb_ver }}
 
-    - name: Determine extended image name
-      if: steps.check_ext_bake.outputs.should_build == 'true'
-      id: image_name
-      shell: bash
-      run: |
-        if [[ -n "${{ inputs.ext_image_name }}" ]]; then
-          IMAGE_NAME="${{ inputs.ext_image_name }}"
-        else
-          IMAGE_NAME="${{ github.event.repository.name }}"
-        fi
-        echo "name=${IMAGE_NAME}" >> $GITHUB_OUTPUT
-
     - name: Build images
       if: steps.check_ext_bake.outputs.should_build == 'true'
       uses: docker/bake-action@v5
@@ -114,17 +97,16 @@ runs:
         FENV_DOCKER_TAG: ${{ steps.docker.outputs.tag }}
         FENV_EXT_DOCKER_TAG: ${{ steps.docker_ext.outputs.tag }}
         FENV_FDB_VER: ${{ inputs.fdb_ver }}
-        FENV_EXT_IMAGE_NAME: ${{ steps.image_name.outputs.name }}
       with:
         workdir: ${{ github.workspace }}
         files: |
           ${{ github.action_path }}/bake.hcl
           ${{ inputs.ext_bake }}
-        targets: fenv
+        targets: fenv-ext
         load: true
         set: |
-          fenv-base.context=${{ github.action_path }}
-          fenv.context=${{ github.workspace }}
+          fenv.context=${{ github.action_path }}
+          fenv-ext.context=${{ github.workspace }}
           *.cache-from=type=gha,scope=build-${{ inputs.fdb_ver }}
           *.cache-to=type=gha,mode=max,scope=build-${{ inputs.fdb_ver }}
         provenance: false
@@ -138,7 +120,7 @@ runs:
       with:
         workdir: ${{ github.action_path }}
         files: bake.hcl
-        targets: fenv-base
+        targets: fenv
         load: true
         set: |
           *.cache-from=type=gha,scope=build-${{ inputs.fdb_ver }}
@@ -154,10 +136,8 @@ runs:
         # Export extended image variables
         if [[ "${{ steps.check_ext_bake.outputs.should_build }}" == "true" ]]; then
           echo "FENV_EXT_DOCKER_TAG=${{ steps.docker_ext.outputs.tag }}" >> $GITHUB_ENV
-          echo "FENV_EXT_IMAGE_NAME=${{ steps.image_name.outputs.name }}" >> $GITHUB_ENV
           echo "FENV_EXT_IMAGE_BUILT=true" >> $GITHUB_ENV
         else
           echo "FENV_EXT_DOCKER_TAG=" >> $GITHUB_ENV
-          echo "FENV_EXT_IMAGE_NAME=" >> $GITHUB_ENV
           echo "FENV_EXT_IMAGE_BUILT=false" >> $GITHUB_ENV
         fi

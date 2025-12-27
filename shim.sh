@@ -32,6 +32,4 @@ if [[ "$UNREADABLE" != "[]" && "$UNREADABLE" != "null" && -n "$UNREADABLE" ]]; t
   fdbcli --exec "configure new single memory"
 fi
 
-echo
-
 exec "$@"

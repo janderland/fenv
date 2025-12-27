@@ -12,7 +12,7 @@ services:
   # so the cache can be persisted between runs.
   fenv:
     container_name: "fenv"
-    image: "fenv:${FENV_DOCKER_TAG}"
+    image: "${FENV_IMAGE}"
     pull_policy: "never"
     platform: "linux/amd64"
     depends_on:

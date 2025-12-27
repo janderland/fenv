@@ -22,10 +22,6 @@ FLAGS
            Path to a custom bake.hcl file. Used with --build to
            build a custom image on top of fenv's base image.
 
-  --compose FILE
-           Path to a custom compose.yaml file. Merges with fenv's
-           compose.yaml (custom overrides fenv).
-
   --help   Print this help message.
 
 EXAMPLES
@@ -36,8 +32,8 @@ EXAMPLES
   # Build a custom image extending fenv
   ./build.sh --bake ./bake.hcl --build
 
-  # Run a command with custom compose
-  ./build.sh --compose ./compose.yaml --exec ./test.sh
+  # Run a command in the container
+  ./build.sh --exec ./test.sh
 
   # Tear down the environment
   ./build.sh --down
@@ -104,11 +100,6 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
 
-    --compose)
-      CUSTOM_COMPOSE="$2"
-      shift 2
-      ;;
-
     --help)
       print_help
       exit 0
@@ -140,25 +131,21 @@ if [[ -f "${CALLING_DIR}/fenv/docker_tag.sh" ]]; then
   export FENV_EXT_DOCKER_TAG
 fi
 
-
-# Build the compose file arguments.
-
-COMPOSE_FILES=(-f compose.yaml)
-if [[ -n "${CUSTOM_COMPOSE:-}" ]]; then
-  # Convert to absolute path if relative.
-  if [[ "$CUSTOM_COMPOSE" != /* ]]; then
-    CUSTOM_COMPOSE="${CALLING_DIR}/${CUSTOM_COMPOSE}"
-  fi
-  COMPOSE_FILES+=(-f "$CUSTOM_COMPOSE")
-  echo "CUSTOM_COMPOSE=${CUSTOM_COMPOSE}"
+# Select which image to use for compose based on whether --bake was provided.
+if [[ -n "${CUSTOM_BAKE:-}" ]]; then
+  FENV_IMAGE="fenv-ext:${FENV_EXT_DOCKER_TAG}"
+else
+  FENV_IMAGE="fenv:${FENV_DOCKER_TAG}"
 fi
+echo "FENV_IMAGE=${FENV_IMAGE}"
+export FENV_IMAGE
 
 
 # Run the requested commands.
 
 if [[ -n "${DO_BUILD:-}" ]]; then
   # Always build fenv's base image first.
-  (set -x; docker buildx bake -f bake.hcl --load fenv-base)
+  (set -x; docker buildx bake -f bake.hcl --load fenv)
 
   # If a custom bake file is provided, build the custom image.
   if [[ -n "${CUSTOM_BAKE:-}" ]]; then
@@ -167,14 +154,14 @@ if [[ -n "${DO_BUILD:-}" ]]; then
       CUSTOM_BAKE="${CALLING_DIR}/${CUSTOM_BAKE}"
     fi
     echo "CUSTOM_BAKE=${CUSTOM_BAKE}"
-    (set -x; docker buildx bake -f bake.hcl -f "$CUSTOM_BAKE" --set "fenv.context=$CALLING_DIR" --allow=fs.read=.. --load fenv)
+    (set -x; docker buildx bake -f bake.hcl -f "$CUSTOM_BAKE" --set "fenv.context=." --set "fenv-ext.context=$CALLING_DIR" --allow=fs.read=.. --load fenv-ext)
   fi
 fi
 
 if [[ -n "${DO_EXEC:-}" ]]; then
-  (set -x; docker compose "${COMPOSE_FILES[@]}" run --rm -v "${CALLING_DIR}:/src" fenv "${EXEC_ARGS[@]}")
+  (set -x; docker compose -f compose.yaml run --rm -v "${CALLING_DIR}:/src" fenv "${EXEC_ARGS[@]}")
 fi
 
 if [[ -n "${DO_DOWN:-}" ]]; then
-  (set -x; docker compose "${COMPOSE_FILES[@]}" down -v)
+  (set -x; docker compose -f compose.yaml down -v)
 fi

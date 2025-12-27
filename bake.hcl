@@ -9,10 +9,10 @@ variable "FENV_FDB_VER" {
 }
 
 group "default" {
-  targets = ["fenv-base"]
+  targets = ["fenv"]
 }
 
-target "fenv-base" {
+target "fenv" {
   context    = "."
   dockerfile = "Dockerfile"
   tags       = ["fenv:${FENV_DOCKER_TAG}"]
