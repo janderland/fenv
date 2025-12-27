@@ -1,13 +1,15 @@
 # fenv
 
-A Docker-based FoundationDB environment for local development and GitHub Actions CI/CD. Provides a consistent build/test environment with the FDB client library and common dev tools.
+A FoundationDB development environment that provides a Docker-based environment for building and testing code that depends on FoundationDB. Works identically on your local machine and in GitHub Actions.
 
 ## Features
 
-- Builds a Docker image with FoundationDB client library and dev tools
-- Caches both the build image and FDB server image for fast CI runs
-- Automatically initializes new FDB databases
-- Works identically for local development and CI
+- Provides a base container with the FoundationDB client library
+- The base container may be extended by providing a custom Dockerfile
+- Automatically starts an FDB container for integration testing
+- Configures the client container with the appropriate cluster file
+- Supports both local development and GitHub Actions workflows
+- Caches Docker images in CI to prevent rebuilds on every workflow run
 
 ## Installation
 
@@ -17,44 +19,112 @@ Add fenv as a git submodule in your project:
 git submodule add https://github.com/janderland/fenv.git
 ```
 
-This allows you to use the same environment locally and in CI.
+## Quick Start
+
+**Local development:**
+```bash
+./fenv/fenv.sh --build --exec fdbcli --exec "status"
+```
+
+**GitHub Actions:**
+```yaml
+- uses: actions/checkout@v4
+  with:
+    submodules: true
+- uses: ./fenv
+- run: ./fenv/fenv.sh --exec fdbcli --exec "status"
+```
+
+## Extending the Client Container
+
+You can extend the base fenv image with your own build tools and dependencies by providing a custom Dockerfile.
+
+Create a Dockerfile that uses the fenv base image:
+
+```dockerfile
+ARG FENV_DOCKER_TAG
+FROM fenv:${FENV_DOCKER_TAG}
+
+# Install Go
+RUN curl -fsSL https://go.dev/dl/go1.23.4.linux-amd64.tar.gz | tar -C /usr/local -xz
+ENV PATH="/usr/local/go/bin:${PATH}"
+ENV GOCACHE="/cache/gocache"
+ENV GOMODCACHE="/cache/gomod"
+
+# Install golangci-lint
+RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | \
+    sh -s -- -b /usr/local/bin v1.62.2
+ENV GOLANGCI_LINT_CACHE="/cache/golangci-lint"
+```
+
+The `FENV_DOCKER_TAG` argument is automatically provided and ensures your extended image is based on the correct version of fenv.
 
 ## Local Development
 
-Use `build.sh` to build and test your project locally:
+Use the `fenv.sh` script to manage your development environment:
 
 ```bash
-# Build the fenv container image
-./fenv/build.sh --image
+# Build the fenv container (and optionally an extended image)
+./fenv/fenv.sh --build
+./fenv/fenv.sh --docker ./Dockerfile --build
 
-# Run your build/test script inside the container
-./fenv/build.sh --exec ./scripts/test.sh
-
-# Or run commands directly
-./fenv/build.sh --exec fdbcli --exec "status"
+# Execute commands in the container
+./fenv/fenv.sh --exec fdbcli --exec "status"
 
 # Interactive shell
-./fenv/build.sh --exec bash
+./fenv/fenv.sh --exec bash
 
 # Tear down containers and volumes
-./fenv/build.sh --down
+./fenv/fenv.sh --down
+
+# Show help
+./fenv/fenv.sh --help
 ```
 
-The script can be called from any directory. Your current working directory is mounted as the working directory in the container.
+The script can be called from any directory. Your current working directory is automatically mounted as the container's working directory at `/src`.
 
-Set `FENV_FDB_VER` to use a different FDB version:
+### Example: ci.sh Script
+
+A common pattern is to create a `ci.sh` script that invokes fenv with your build and test commands:
 
 ```bash
-FENV_FDB_VER=7.3.43 ./fenv/build.sh --image
+#!/bin/bash
+set -eo pipefail
+cd "$(dirname "$0")"
+
+./fenv/fenv.sh \
+    --docker ./Dockerfile \
+    --build \
+    --exec sh -c '
+        shellcheck ci.sh
+        hadolint Dockerfile
+        go build ./...
+        golangci-lint run ./...
+        go test ./... -timeout 5s
+    '
+```
+
+This script can be run both locally and in CI, ensuring identical behavior.
+
+### FDB Version Selection
+
+Set the `FENV_FDB_VER` environment variable to use a different FoundationDB version:
+
+```bash
+FENV_FDB_VER=7.3.43 ./fenv/fenv.sh --build
 ```
 
 ## GitHub Actions
 
-Reference the action from your submodule path:
+Use the fenv action in your workflows:
 
 ```yaml
-name: Test
-on: [push, pull_request]
+name: test
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
   test:
@@ -66,14 +136,20 @@ jobs:
 
       - uses: ./fenv
         with:
-          fdb_ver: '7.1.61'  # optional, this is the default
+          ext_dockerfile: './Dockerfile'
 
-      - run: $FENV_PATH/build.sh --exec ./scripts/test.sh
+      - run: ./ci.sh
 ```
 
-### Testing Multiple Versions
+The action automatically:
+- Sets up Docker Buildx
+- Caches the FDB server image
+- Builds and caches your extended image (if provided)
+- Exports environment variables for subsequent steps
 
-Use a matrix strategy to test against multiple FDB versions:
+### Testing Multiple FDB Versions
+
+Use a matrix strategy to test against multiple FoundationDB versions:
 
 ```yaml
 jobs:
@@ -91,37 +167,56 @@ jobs:
       - uses: ./fenv
         with:
           fdb_ver: ${{ matrix.fdb_ver }}
+          ext_dockerfile: './Dockerfile'
 
-      - run: $FENV_PATH/build.sh --exec ./scripts/test.sh
+      - run: ./ci.sh
 ```
 
-## Action Inputs
+## Configuration Reference
+
+### Environment Variables
+
+**User-configurable:**
+- `FENV_FDB_VER`: FoundationDB version (default: `7.1.61`)
+- `FENV_CACHE_VOLUME`: Custom cache volume name (optional)
+
+**Auto-computed (available after running fenv):**
+- `FENV_DOCKER_TAG`: Docker tag for the base fenv image
+- `FENV_EXT_DOCKER_TAG`: Docker tag for the extended image (if built)
+- `FENV_IMAGE`: Selected image name used by docker compose
+
+**Container-internal (used by shim.sh entrypoint):**
+- `FENV_FDB_HOSTNAME`: FDB server hostname (default: `fdb`)
+- `FENV_FDB_DESCRIPTION_ID`: Cluster description:id (default: `docker:docker`)
+
+### GitHub Action Inputs
 
 | Name | Description | Required | Default |
 |------|-------------|----------|---------|
 | `fdb_ver` | FoundationDB version | No | `7.1.61` |
+| `ext_dockerfile` | Path to custom Dockerfile for extending fenv image | No | - |
 
-## Action Outputs
+### GitHub Action Outputs
 
 | Name | Description |
 |------|-------------|
-| `fenv_docker_tag` | Docker image tag for the build container |
+| `fenv_docker_tag` | Docker tag for base fenv image |
+| `fenv_ext_docker_tag` | Docker tag for extended image (if built) |
+| `fenv_ext_image_built` | Whether extended image was built (`true`/`false`) |
 
-## Environment Variables
+## Base Image Contents
 
-The action exports these variables for use in subsequent steps:
+The base fenv image includes:
 
-| Variable | Description |
-|----------|-------------|
-| `FENV_PATH` | Path to the fenv directory |
-| `FENV_DOCKER_TAG` | Docker image tag for the build container |
-| `FENV_FDB_VER` | FoundationDB version being used |
+- **OS**: Debian 12
+- **FoundationDB**: Client library and `fdbcli` command-line tool
+- **Linters**: `shellcheck` (v0.10.0), `hadolint` (v2.7.0)
+- **Utilities**: `jp` (JMESPath CLI v0.2.1) for JSON processing
+- **Build Tools**: `git`, `curl`, `build-essential`
 
-## Build Container Contents
+## Example Repository
 
-- FoundationDB client library
-- `fdbcli` command-line tool
-- `shellcheck` for shell script linting
-- `hadolint` for Dockerfile linting
-- `jp` (JMESPath CLI) for JSON processing
-- Common build tools (`git`, `curl`, `build-essential`)
+See [fdb-mutex](https://github.com/janderland/fdb-mutex) for a complete example showing:
+- Custom Dockerfile extending fenv with Go toolchain
+- ci.sh script for build and test
+- GitHub Actions workflow integration
