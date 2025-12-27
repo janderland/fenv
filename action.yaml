@@ -8,8 +8,8 @@ inputs:
     required: false
     default: '7.1.61'
 
-  ext_bake:
-    description: 'Path to custom bake.hcl for extending fenv image'
+  ext_dockerfile:
+    description: 'Path to custom Dockerfile for extending fenv image'
     required: false
     default: ''
 
@@ -24,7 +24,7 @@ outputs:
 
   fenv_ext_image_built:
     description: 'Whether extended image was built (true/false)'
-    value: ${{ steps.check_ext_bake.outputs.should_build }}
+    value: ${{ steps.check_ext_dockerfile.outputs.should_build }}
 
 runs:
   using: 'composite'
@@ -60,29 +60,29 @@ runs:
         docker pull foundationdb/foundationdb:${{ inputs.fdb_ver }}
         docker save foundationdb/foundationdb:${{ inputs.fdb_ver }} -o ~/.cache/fenv/fdb-image.tar
 
-    - name: Check if ext bake file provided
-      id: check_ext_bake
+    - name: Check if ext dockerfile provided
+      id: check_ext_dockerfile
       shell: bash
       run: |
-        if [[ -n "${{ inputs.ext_bake }}" ]]; then
+        if [[ -n "${{ inputs.ext_dockerfile }}" ]]; then
           echo "should_build=true" >> $GITHUB_OUTPUT
         else
           echo "should_build=false" >> $GITHUB_OUTPUT
         fi
 
-    - name: Validate ext bake file exists
-      if: steps.check_ext_bake.outputs.should_build == 'true'
+    - name: Validate ext dockerfile exists
+      if: steps.check_ext_dockerfile.outputs.should_build == 'true'
       shell: bash
       run: |
-        BAKE_PATH="${{ inputs.ext_bake }}"
-        if [[ ! -f "$BAKE_PATH" ]]; then
-          echo "ERROR: Ext bake file not found: $BAKE_PATH"
-          ls -la "$(dirname "$BAKE_PATH")" || echo "Parent directory not found"
+        DOCKERFILE_PATH="${{ inputs.ext_dockerfile }}"
+        if [[ ! -f "$DOCKERFILE_PATH" ]]; then
+          echo "ERROR: Ext dockerfile not found: $DOCKERFILE_PATH"
+          ls -la "$(dirname "$DOCKERFILE_PATH")" || echo "Parent directory not found"
           exit 1
         fi
 
     - name: Compute Docker tag for extended image
-      if: steps.check_ext_bake.outputs.should_build == 'true'
+      if: steps.check_ext_dockerfile.outputs.should_build == 'true'
       id: docker_ext
       shell: bash
       working-directory: ${{ github.workspace }}
@@ -90,41 +90,50 @@ runs:
       env:
         FENV_FDB_VER: ${{ inputs.fdb_ver }}
 
-    - name: Build images
-      if: steps.check_ext_bake.outputs.should_build == 'true'
-      uses: docker/bake-action@v5
-      env:
-        FENV_DOCKER_TAG: ${{ steps.docker.outputs.tag }}
-        FENV_EXT_DOCKER_TAG: ${{ steps.docker_ext.outputs.tag }}
-        FENV_FDB_VER: ${{ inputs.fdb_ver }}
+    # When building extended image, first build base, then extended
+    - name: Build base image (for extended build)
+      if: steps.check_ext_dockerfile.outputs.should_build == 'true'
+      uses: docker/build-push-action@v6
       with:
-        workdir: ${{ github.workspace }}
-        files: |
-          ${{ github.action_path }}/bake.hcl
-          ${{ inputs.ext_bake }}
-        targets: fenv-ext
+        context: ${{ github.action_path }}
+        file: ${{ github.action_path }}/Dockerfile
+        platforms: linux/amd64
+        build-args: |
+          FENV_FDB_VER=${{ inputs.fdb_ver }}
+        tags: fenv:${{ steps.docker.outputs.tag }}
         load: true
-        set: |
-          fenv.context=${{ github.action_path }}
-          fenv-ext.context=${{ github.workspace }}
-          *.cache-from=type=gha,scope=build-${{ inputs.fdb_ver }}
-          *.cache-to=type=gha,mode=max,scope=build-${{ inputs.fdb_ver }}
+        cache-from: type=gha,scope=fenv-${{ inputs.fdb_ver }}
+        cache-to: type=gha,mode=max,scope=fenv-${{ inputs.fdb_ver }}
+        provenance: false
+
+    - name: Build extended image
+      if: steps.check_ext_dockerfile.outputs.should_build == 'true'
+      uses: docker/build-push-action@v6
+      with:
+        context: ${{ github.workspace }}
+        file: ${{ inputs.ext_dockerfile }}
+        platforms: linux/amd64
+        build-args: |
+          FENV_DOCKER_TAG=${{ steps.docker.outputs.tag }}
+        tags: fenv-ext:${{ steps.docker_ext.outputs.tag }}
+        load: true
+        cache-from: type=gha,scope=fenv-ext-${{ inputs.fdb_ver }}
+        cache-to: type=gha,mode=max,scope=fenv-ext-${{ inputs.fdb_ver }}
         provenance: false
 
     - name: Build base image only
-      if: steps.check_ext_bake.outputs.should_build != 'true'
-      uses: docker/bake-action@v5
-      env:
-        FENV_DOCKER_TAG: ${{ steps.docker.outputs.tag }}
-        FENV_FDB_VER: ${{ inputs.fdb_ver }}
+      if: steps.check_ext_dockerfile.outputs.should_build != 'true'
+      uses: docker/build-push-action@v6
       with:
-        workdir: ${{ github.action_path }}
-        files: bake.hcl
-        targets: fenv
+        context: ${{ github.action_path }}
+        file: ${{ github.action_path }}/Dockerfile
+        platforms: linux/amd64
+        build-args: |
+          FENV_FDB_VER=${{ inputs.fdb_ver }}
+        tags: fenv:${{ steps.docker.outputs.tag }}
         load: true
-        set: |
-          *.cache-from=type=gha,scope=build-${{ inputs.fdb_ver }}
-          *.cache-to=type=gha,mode=max,scope=build-${{ inputs.fdb_ver }}
+        cache-from: type=gha,scope=fenv-${{ inputs.fdb_ver }}
+        cache-to: type=gha,mode=max,scope=fenv-${{ inputs.fdb_ver }}
 
     - name: Export environment
       shell: bash
@@ -134,7 +143,7 @@ runs:
         echo "FENV_PATH=${{ github.action_path }}" >> $GITHUB_ENV
 
         # Export extended image variables
-        if [[ "${{ steps.check_ext_bake.outputs.should_build }}" == "true" ]]; then
+        if [[ "${{ steps.check_ext_dockerfile.outputs.should_build }}" == "true" ]]; then
           echo "FENV_EXT_DOCKER_TAG=${{ steps.docker_ext.outputs.tag }}" >> $GITHUB_ENV
           echo "FENV_EXT_IMAGE_BUILT=true" >> $GITHUB_ENV
         else

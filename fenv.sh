@@ -9,8 +9,8 @@ interface for building and running the fenv container.
 
 FLAGS
 
-  --build  Build the 'build' container image. If --bake is provided,
-           builds fenv's image first, then builds the custom image.
+  --build  Build the 'build' container image. If --docker is provided,
+           builds fenv's image first, then builds the extended image.
 
   --exec   Execute a command in the 'build' container. All
            arguments after this flag are passed to the container.
@@ -18,9 +18,9 @@ FLAGS
   --down   Run 'docker compose down -v' to stop and remove
            containers and volumes.
 
-  --bake FILE
-           Path to a custom bake.hcl file. Used with --build to
-           build a custom image on top of fenv's base image.
+  --docker FILE
+           Path to a custom Dockerfile. Used with --build to
+           build an extended image on top of fenv's base image.
 
   --help   Print this help message.
 
@@ -29,8 +29,8 @@ EXAMPLES
   # Build the fenv image
   ./build.sh --build
 
-  # Build a custom image extending fenv
-  ./build.sh --bake ./bake.hcl --build
+  # Build an extended image on top of fenv
+  ./build.sh --docker ./docker/Dockerfile --build
 
   # Run a command in the container
   ./build.sh --exec ./test.sh
@@ -95,8 +95,8 @@ while [[ $# -gt 0 ]]; do
       shift 1
       ;;
 
-    --bake)
-      CUSTOM_BAKE="$2"
+    --docker)
+      EXT_DOCKERFILE="$2"
       shift 2
       ;;
 
@@ -131,8 +131,8 @@ if [[ -f "${CALLING_DIR}/fenv/docker_tag.sh" ]]; then
   export FENV_EXT_DOCKER_TAG
 fi
 
-# Select which image to use for compose based on whether --bake was provided.
-if [[ -n "${CUSTOM_BAKE:-}" ]]; then
+# Select which image to use for compose based on whether --docker was provided.
+if [[ -n "${EXT_DOCKERFILE:-}" ]]; then
   FENV_IMAGE="fenv-ext:${FENV_EXT_DOCKER_TAG}"
 else
   FENV_IMAGE="fenv:${FENV_DOCKER_TAG}"
@@ -145,16 +145,27 @@ export FENV_IMAGE
 
 if [[ -n "${DO_BUILD:-}" ]]; then
   # Always build fenv's base image first.
-  (set -x; docker buildx bake -f bake.hcl --load fenv)
+  (set -x; docker build \
+    --platform linux/amd64 \
+    --build-arg "FENV_FDB_VER=${FENV_FDB_VER}" \
+    --tag "fenv:${FENV_DOCKER_TAG}" \
+    "${SCRIPT_DIR}")
 
-  # If a custom bake file is provided, build the custom image.
-  if [[ -n "${CUSTOM_BAKE:-}" ]]; then
+  # If an extended Dockerfile is provided, build the extended image.
+  if [[ -n "${EXT_DOCKERFILE:-}" ]]; then
     # Convert to absolute path if relative.
-    if [[ "$CUSTOM_BAKE" != /* ]]; then
-      CUSTOM_BAKE="${CALLING_DIR}/${CUSTOM_BAKE}"
+    if [[ "$EXT_DOCKERFILE" != /* ]]; then
+      EXT_DOCKERFILE="${CALLING_DIR}/${EXT_DOCKERFILE}"
     fi
-    echo "CUSTOM_BAKE=${CUSTOM_BAKE}"
-    (set -x; docker buildx bake -f bake.hcl -f "$CUSTOM_BAKE" --set "fenv.context=." --set "fenv-ext.context=$CALLING_DIR" --allow=fs.read=.. --load fenv-ext)
+    echo "EXT_DOCKERFILE=${EXT_DOCKERFILE}"
+
+    # Build extended image from the calling directory context.
+    (set -x; docker build \
+      --platform linux/amd64 \
+      --build-arg "FENV_DOCKER_TAG=${FENV_DOCKER_TAG}" \
+      --tag "fenv-ext:${FENV_EXT_DOCKER_TAG}" \
+      --file "${EXT_DOCKERFILE}" \
+      "${CALLING_DIR}")
   fi
 fi
 
