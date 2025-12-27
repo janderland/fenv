@@ -90,35 +90,48 @@ runs:
       env:
         FENV_FDB_VER: ${{ inputs.fdb_ver }}
 
-    # When building extended image, first build base, then extended
-    - name: Build base image (for extended build)
+    # Create inline bake file for building both images
+    - name: Create bake configuration
       if: steps.check_ext_dockerfile.outputs.should_build == 'true'
-      uses: docker/build-push-action@v6
-      with:
-        context: ${{ github.action_path }}
-        file: ${{ github.action_path }}/Dockerfile
-        platforms: linux/amd64
-        build-args: |
-          FENV_FDB_VER=${{ inputs.fdb_ver }}
-        tags: fenv:${{ steps.docker.outputs.tag }}
-        load: true
-        cache-from: type=gha,scope=fenv-${{ inputs.fdb_ver }}
-        cache-to: type=gha,mode=max,scope=fenv-${{ inputs.fdb_ver }}
-        provenance: false
+      shell: bash
+      run: |
+        cat > /tmp/inline-bake.hcl <<'EOF'
+        target "fenv" {
+          context    = "${{ github.action_path }}"
+          dockerfile = "${{ github.action_path }}/Dockerfile"
+          tags       = ["fenv:${{ steps.docker.outputs.tag }}"]
+          platforms  = ["linux/amd64"]
+          cache-from = ["type=gha,scope=fenv-${{ inputs.fdb_ver }}"]
+          cache-to   = ["type=gha,mode=max,scope=fenv-${{ inputs.fdb_ver }}"]
+          args = {
+            FENV_FDB_VER = "${{ inputs.fdb_ver }}"
+          }
+        }
 
-    - name: Build extended image
+        target "fenv-ext" {
+          contexts = {
+            "fenv:${{ steps.docker.outputs.tag }}" = "target:fenv"
+          }
+          context    = "${{ github.workspace }}"
+          dockerfile = "${{ inputs.ext_dockerfile }}"
+          tags       = ["fenv-ext:${{ steps.docker_ext.outputs.tag }}"]
+          platforms  = ["linux/amd64"]
+          cache-from = ["type=gha,scope=fenv-ext-${{ inputs.fdb_ver }}"]
+          cache-to   = ["type=gha,mode=max,scope=fenv-ext-${{ inputs.fdb_ver }}"]
+          args = {
+            FENV_DOCKER_TAG = "${{ steps.docker.outputs.tag }}"
+          }
+        }
+        EOF
+
+    # Build both images in single bake invocation
+    - name: Build images with bake
       if: steps.check_ext_dockerfile.outputs.should_build == 'true'
-      uses: docker/build-push-action@v6
+      uses: docker/bake-action@v5
       with:
-        context: ${{ github.workspace }}
-        file: ${{ inputs.ext_dockerfile }}
-        platforms: linux/amd64
-        build-args: |
-          FENV_DOCKER_TAG=${{ steps.docker.outputs.tag }}
-        tags: fenv-ext:${{ steps.docker_ext.outputs.tag }}
+        files: /tmp/inline-bake.hcl
+        targets: fenv-ext
         load: true
-        cache-from: type=gha,scope=fenv-ext-${{ inputs.fdb_ver }}
-        cache-to: type=gha,mode=max,scope=fenv-ext-${{ inputs.fdb_ver }}
         provenance: false
 
     - name: Build base image only
