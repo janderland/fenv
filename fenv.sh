@@ -122,21 +122,23 @@ done
 
 # Build variables required by docker commands.
 
-FENV_DOCKER_TAG="$(./docker_tag.sh)"
-echo "FENV_DOCKER_TAG=${FENV_DOCKER_TAG}"
-export FENV_DOCKER_TAG
-
 FENV_FDB_VER="${FENV_FDB_VER:-7.1.61}"
 echo "FENV_FDB_VER=${FENV_FDB_VER}"
 export FENV_FDB_VER
 
+FENV_DOCKER_TAG="$(./docker_tag.sh)"
+echo "FENV_DOCKER_TAG=${FENV_DOCKER_TAG}"
+export FENV_DOCKER_TAG
+
 echo "CALLING_DIR=${CALLING_DIR}"
 export CALLING_DIR
 
-# Compute docker tag for extended images.
-FENV_EXT_DOCKER_TAG="$(cd "$CALLING_DIR" && ./fenv/docker_tag.sh)"
-echo "FENV_EXT_DOCKER_TAG=${FENV_EXT_DOCKER_TAG}"
-export FENV_EXT_DOCKER_TAG
+# Compute docker tag for extended images if fenv is a submodule.
+if [[ -f "${CALLING_DIR}/fenv/docker_tag.sh" ]]; then
+  FENV_EXT_DOCKER_TAG="$(cd "$CALLING_DIR" && ./fenv/docker_tag.sh)"
+  echo "FENV_EXT_DOCKER_TAG=${FENV_EXT_DOCKER_TAG}"
+  export FENV_EXT_DOCKER_TAG
+fi
 
 
 # Build the compose file arguments.
