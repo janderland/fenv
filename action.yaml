@@ -45,20 +45,6 @@ runs:
       env:
         FENV_FDB_VER: ${{ inputs.fdb_ver }}
 
-    - name: Build image
-      uses: docker/bake-action@v5
-      env:
-        FENV_DOCKER_TAG: ${{ steps.docker.outputs.tag }}
-        FENV_FDB_VER: ${{ inputs.fdb_ver }}
-      with:
-        workdir: ${{ github.action_path }}
-        files: bake.hcl
-        targets: fenv
-        load: true
-        set: |
-          *.cache-from=type=gha,scope=build-${{ inputs.fdb_ver }}
-          *.cache-to=type=gha,mode=max,scope=build-${{ inputs.fdb_ver }}
-
     - name: Cache FDB image
       id: cache-fdb
       uses: actions/cache@v4
@@ -121,7 +107,7 @@ runs:
         fi
         echo "name=${IMAGE_NAME}" >> $GITHUB_OUTPUT
 
-    - name: Build extended image
+    - name: Build images
       if: steps.check_ext_bake.outputs.should_build == 'true'
       uses: docker/bake-action@v5
       env:
@@ -137,10 +123,26 @@ runs:
         targets: fenv
         load: true
         set: |
+          fenv-base.context=${{ github.action_path }}
           fenv.context=${{ github.workspace }}
-          *.cache-from=type=gha,scope=build-ext-${{ inputs.fdb_ver }}
-          *.cache-to=type=gha,mode=max,scope=build-ext-${{ inputs.fdb_ver }}
+          *.cache-from=type=gha,scope=build-${{ inputs.fdb_ver }}
+          *.cache-to=type=gha,mode=max,scope=build-${{ inputs.fdb_ver }}
         provenance: false
+
+    - name: Build base image only
+      if: steps.check_ext_bake.outputs.should_build != 'true'
+      uses: docker/bake-action@v5
+      env:
+        FENV_DOCKER_TAG: ${{ steps.docker.outputs.tag }}
+        FENV_FDB_VER: ${{ inputs.fdb_ver }}
+      with:
+        workdir: ${{ github.action_path }}
+        files: bake.hcl
+        targets: fenv-base
+        load: true
+        set: |
+          *.cache-from=type=gha,scope=build-${{ inputs.fdb_ver }}
+          *.cache-to=type=gha,mode=max,scope=build-${{ inputs.fdb_ver }}
 
     - name: Export environment
       shell: bash
