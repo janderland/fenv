@@ -40,7 +40,8 @@ runs:
     - name: Compute Docker tag
       id: docker
       shell: bash
-      run: echo "tag=$(${{ github.action_path }}/docker_tag.sh)" >> $GITHUB_OUTPUT
+      working-directory: ${{ github.action_path }}
+      run: echo "tag=$(./docker_tag.sh)" >> $GITHUB_OUTPUT
       env:
         FENV_FDB_VER: ${{ inputs.fdb_ver }}
 
