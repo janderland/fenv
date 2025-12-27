@@ -15,7 +15,7 @@ group "default" {
 target "fenv" {
   context    = "."
   dockerfile = "Dockerfile"
-  tags       = ["docker.io/janderland/fenv:${FENV_DOCKER_TAG}"]
+  tags       = ["fenv:${FENV_DOCKER_TAG}"]
   platforms  = ["linux/amd64"]
   args = {
     FENV_FDB_VER = FENV_FDB_VER
