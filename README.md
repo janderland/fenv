@@ -10,6 +10,7 @@ A FoundationDB development environment that provides a Docker-based environment 
 - Configures the client container with the appropriate cluster file
 - Supports both local development and GitHub Actions workflows
 - Caches Docker images in CI to prevent rebuilds on every workflow run
+- Provides a `/cache` directory that persists between container runs for build and test caches
 
 ## Installation
 
@@ -58,6 +59,10 @@ ENV GOLANGCI_LINT_CACHE="/cache/golangci-lint"
 ```
 
 The `FENV_DOCKER_TAG` argument is automatically provided and ensures your extended image is based on the correct version of fenv.
+
+### Cache Directory
+
+The `/cache` directory is backed by a Docker volume that persists between container runs. This makes it an ideal location for build and test caches (as shown in the example above with Go's module cache and golangci-lint cache). Using `/cache` significantly speeds up subsequent builds and test runs.
 
 ## Local Development
 
