@@ -158,7 +158,7 @@ fi
 
 if [[ -n "${DO_IMAGE:-}" ]]; then
   # Always build fenv's base image first.
-  (set -x; docker buildx bake -f bake.hcl --load fenv)
+  (set -x; docker buildx bake -f bake.hcl --load fenv-base)
 
   # If a custom bake file is provided, build the custom image.
   if [[ -n "${CUSTOM_BAKE:-}" ]]; then
