@@ -9,7 +9,7 @@ interface for building and running the fenv container.
 
 FLAGS
 
-  --image  Build the 'build' container image. If --bake is provided,
+  --build  Build the 'build' container image. If --bake is provided,
            builds fenv's image first, then builds the custom image.
 
   --exec   Execute a command in the 'build' container. All
@@ -19,7 +19,7 @@ FLAGS
            containers and volumes.
 
   --bake FILE
-           Path to a custom bake.hcl file. Used with --image to
+           Path to a custom bake.hcl file. Used with --build to
            build a custom image on top of fenv's base image.
 
   --compose FILE
@@ -31,10 +31,10 @@ FLAGS
 EXAMPLES
 
   # Build the fenv image
-  ./build.sh --image
+  ./build.sh --build
 
   # Build a custom image extending fenv
-  ./build.sh --bake ./bake.hcl --image
+  ./build.sh --bake ./bake.hcl --build
 
   # Run a command with custom compose
   ./build.sh --compose ./compose.yaml --exec ./test.sh
@@ -82,8 +82,8 @@ fi
 
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --image)
-      DO_IMAGE="x"
+    --build)
+      DO_BUILD="x"
       shift 1
       ;;
 
@@ -156,7 +156,7 @@ fi
 
 # Run the requested commands.
 
-if [[ -n "${DO_IMAGE:-}" ]]; then
+if [[ -n "${DO_BUILD:-}" ]]; then
   # Always build fenv's base image first.
   (set -x; docker buildx bake -f bake.hcl --load fenv-base)
 
