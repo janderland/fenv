@@ -1,6 +1,6 @@
 # fenv
 
-A FoundationDB development environment that provides a Docker-based environment for building and testing code that depends on FoundationDB. Works identically on your local machine and in GitHub Actions.
+A FoundationDB CI framework that provides an environment for building and testing code that depends on FoundationDB. Works identically on your local machine and in GitHub Actions.
 
 ## Features
 
